@@ -7,7 +7,6 @@ Mods for [Recharge](https://github.com/SumDumIdiut/recharge), each a self-contai
 | `recharge-multiplayer` | DOTnet - multiplayer with ghosts, chat, and Normal / Co-op modes. `server/` is the shared relay (`node server.js`, `PORT` env, default 7777). |
 | `recharge-example` | Example Mod - a tabbed reference panel exercising the ModApi. |
 | `recharge-icy-physics` | Icy Physics |
-| `recharge-pause-buffering` | Pause Buffering |
 | `recharge-tas` | TAS Tool |
 | `_template` | Starter for a new mod (skipped by the loader build). |
 
