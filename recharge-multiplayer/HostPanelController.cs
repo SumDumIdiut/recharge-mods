@@ -69,7 +69,7 @@ internal class HostPanelController : MonoBehaviour
 
 		if (MpNetworkManager.LatestInLobbyRow.transform.Find("HostPanelToggle") == null)
 		{
-			var toggleTemplate = menu.mainBitPublic.transform.Find("Settings")?.gameObject;
+			var toggleTemplate = PauseMenuHelper.MainBit(menu).transform.Find("Settings")?.gameObject;
 			if (toggleTemplate != null)
 			{
 				var toggleGo = Object.Instantiate(toggleTemplate, MpNetworkManager.LatestInLobbyRow.transform);
@@ -85,12 +85,12 @@ internal class HostPanelController : MonoBehaviour
 			}
 		}
 
-		if (menu.settingsBitPublic.transform.parent.Find("HostPanelBit") != null) return;
+		if (PauseMenuHelper.SettingsBit(menu).transform.parent.Find("HostPanelBit") != null) return;
 
 		var panel = BuildStandalonePanel(menu);
 		if (panel == null) return;
 
-		var template = menu.mainBitPublic.transform.Find("Settings")?.gameObject;
+		var template = PauseMenuHelper.MainBit(menu).transform.Find("Settings")?.gameObject;
 		if (template == null) return;
 
 		_modeButton = BuildActionButton(panel.transform, template, "Mode: Normal", new Vector2(-152, 170), OnCycleModeClicked, width: 148, height: 60, fontSize: 16f);
@@ -102,8 +102,7 @@ internal class HostPanelController : MonoBehaviour
 
 		BuildPickerSection(panel.transform, template);
 
-		_mainContent = new GameObject("HostPanel_MainContent", typeof(RectTransform));
-		_mainContent.transform.SetParent(panel.transform, false);
+		_mainContent = PanelWidgets.CreateContainer(panel.transform, "HostPanel_MainContent", Vector2.zero).gameObject;
 
 		PanelWidgets.CreateDivider(_mainContent.transform, new Vector2(0, 125), 420);
 
@@ -159,12 +158,7 @@ internal class HostPanelController : MonoBehaviour
 
 		PanelWidgets.CreateDivider(_mainContent.transform, new Vector2(0, 15), 420);
 
-		var rosterBoxGo = new GameObject("HostPanelRosterBox", typeof(RectTransform), typeof(Image));
-		rosterBoxGo.transform.SetParent(_mainContent.transform, false);
-		var rosterBoxRt = (RectTransform)rosterBoxGo.transform;
-		rosterBoxRt.anchoredPosition = new Vector2(0, -35);
-		rosterBoxRt.sizeDelta = new Vector2(420, 80);
-		rosterBoxGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.25f);
+		PanelWidgets.CreateBox(_mainContent.transform, new Vector2(0, -35), new Vector2(420, 80));
 
 		_rosterGo = Object.Instantiate(template, _mainContent.transform);
 		_rosterGo.name = "HostPanelRoster";
@@ -260,8 +254,7 @@ internal class HostPanelController : MonoBehaviour
 	private void BuildPickerSection(Transform panel, GameObject template)
 	{
 		_pickerTemplate = template;
-		_pickerSection = new GameObject("HostPanel_PickerSection", typeof(RectTransform));
-		_pickerSection.transform.SetParent(panel, false);
+		_pickerSection = PanelWidgets.CreateContainer(panel, "HostPanel_PickerSection", Vector2.zero).gameObject;
 
 		var headerGo = Object.Instantiate(template, _pickerSection.transform);
 		headerGo.name = "HostPanel_PickerHeader";
@@ -836,8 +829,7 @@ internal class HostPanelController : MonoBehaviour
 	}
 
 	private bool _pendingTeleportToStart;
-	private static readonly System.Reflection.FieldInfo StartGateResetPointField =
-		typeof(startGate).GetField("resetPoint", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+	private static readonly System.Reflection.FieldInfo StartGateResetPointField = Reflect.FieldOf<startGate>("resetPoint");
 
 	private void TryTeleportToStartSpawn()
 	{

@@ -25,16 +25,12 @@ public class RechargeIcyPhysicsMod : IRechargeMod
         _controller = go.AddComponent<IcyPhysicsController>();
         _controller.Enabled = _config.Enabled;
 
-        host.Events.On(RechargeEvents.SceneLoaded, _ =>
-        {
-            var menu = UnityEngine.Object.FindFirstObjectByType<pauseMenuScript>();
-            if (menu != null) InstallMenuRow(menu);
-        });
+        PauseMenuHelper.OnMenuReady(host, InstallMenuRow);
     }
 
     private void InstallMenuRow(pauseMenuScript menu)
     {
-        if (menu.mainBitPublic == null) return;
+        if (PauseMenuHelper.MainBit(menu) == null) return;
         var panel = PauseMenuHelper.AddPanelRow(menu, "IcyPhysics", "Icy Physics");
         if (panel == null) return;
         if (panel.GetComponent<IcyPhysicsPanelUI>() != null) return;

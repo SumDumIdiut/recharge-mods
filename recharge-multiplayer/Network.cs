@@ -1,3 +1,4 @@
+using Recharge.ModApi;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -645,8 +646,7 @@ public class MpNetworkManager : MonoBehaviour
 			if (sr != null) sr.color = c;
 	}
 
-	private static readonly System.Reflection.FieldInfo ActionField =
-		typeof(KeybindSetterItemScript).GetField("action", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+	private static readonly System.Reflection.FieldInfo ActionField = Reflect.FieldOf<KeybindSetterItemScript>("action");
 
 	private static string GetActionName(KeybindSetterItemScript item)
 	{

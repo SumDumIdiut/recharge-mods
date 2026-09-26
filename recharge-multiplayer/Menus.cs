@@ -57,14 +57,10 @@ internal class MpInGameChatHud : MonoBehaviour
 
 	public static void BeginRebind() => IsRebinding = true;
 
-	private static readonly System.Reflection.FieldInfo MoveActionField =
-		typeof(Movement).GetField("moveAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-	private static readonly System.Reflection.FieldInfo JumpActionField =
-		typeof(Movement).GetField("jumpAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-	private static readonly System.Reflection.FieldInfo DashActionField =
-		typeof(Movement).GetField("dashAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-	private static readonly System.Reflection.FieldInfo ResetActionField =
-		typeof(Movement).GetField("resetAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+	private static readonly System.Reflection.FieldInfo MoveActionField = Reflect.FieldOf<Movement>("moveAction");
+	private static readonly System.Reflection.FieldInfo JumpActionField = Reflect.FieldOf<Movement>("jumpAction");
+	private static readonly System.Reflection.FieldInfo DashActionField = Reflect.FieldOf<Movement>("dashAction");
+	private static readonly System.Reflection.FieldInfo ResetActionField = Reflect.FieldOf<Movement>("resetAction");
 
 	private static void SetPlayerInputEnabled(bool enabled)
 	{
@@ -131,8 +127,7 @@ internal class MpInGameChatHud : MonoBehaviour
 		_logGroup.blocksRaycasts = false;
 		_logGroup.interactable = false;
 
-		var logRowsGo = new GameObject("LogRows", typeof(RectTransform));
-		logRowsGo.transform.SetParent(logGo.transform, false);
+		var logRowsGo = PanelWidgets.CreateContainer(logGo.transform, "LogRows", Vector2.zero).gameObject;
 		var logRowsRt = (RectTransform)logRowsGo.transform;
 		logRowsRt.anchorMin = Vector2.zero;
 		logRowsRt.anchorMax = Vector2.one;
@@ -159,8 +154,7 @@ internal class MpInGameChatHud : MonoBehaviour
 		textAreaRt.offsetMax = new Vector2(-8, -2);
 		textArea.AddComponent<RectMask2D>();
 
-		var textGo = new GameObject("Text", typeof(RectTransform));
-		textGo.transform.SetParent(textArea.transform, false);
+		var textGo = PanelWidgets.CreateContainer(textArea.transform, "Text", Vector2.zero).gameObject;
 		var textRt = (RectTransform)textGo.transform;
 		textRt.anchorMin = Vector2.zero;
 		textRt.anchorMax = Vector2.one;
@@ -172,8 +166,7 @@ internal class MpInGameChatHud : MonoBehaviour
 		text.alignment = TextAlignmentOptions.MidlineLeft;
 		text.enableWordWrapping = false;
 
-		var placeholderGo = new GameObject("Placeholder", typeof(RectTransform));
-		placeholderGo.transform.SetParent(textArea.transform, false);
+		var placeholderGo = PanelWidgets.CreateContainer(textArea.transform, "Placeholder", Vector2.zero).gameObject;
 		var placeholderRt = (RectTransform)placeholderGo.transform;
 		placeholderRt.anchorMin = Vector2.zero;
 		placeholderRt.anchorMax = Vector2.one;
@@ -472,8 +465,7 @@ internal class MpPanelUI : MonoBehaviour
 		_appearanceButton = CloneButton(root, "Colour", new Vector2(-190, 165), new Vector2(200, 54));
 		_appearanceButton.GetComponent<Button>().onClick.AddListener(OnAppearanceClicked);
 
-		_hostRow = new GameObject("HostRow", typeof(RectTransform));
-		_hostRow.transform.SetParent(root, false);
+		_hostRow = PanelWidgets.CreateContainer(root, "HostRow", Vector2.zero).gameObject;
 		_lobbyNameField = CreateInputField(_hostRow.transform, new Vector2(-90, 110), new Vector2(300, 44), "Lobby name");
 
 		var hostGo = CloneButton(_hostRow.transform, "Host", new Vector2(195, 110), new Vector2(170, 60));
@@ -483,8 +475,7 @@ internal class MpPanelUI : MonoBehaviour
 		BuildDirectConnectSection(root);
 		BuildMapPickerSection(root);
 
-		_inLobbyRow = new GameObject("InLobbyRow", typeof(RectTransform));
-		_inLobbyRow.transform.SetParent(root, false);
+		_inLobbyRow = PanelWidgets.CreateContainer(root, "InLobbyRow", Vector2.zero).gameObject;
 		_inLobbyLabel = PanelWidgets.CreateLabel(_inLobbyRow.transform, _font, new Vector2(0, 160), new Vector2(560, 34), "");
 		_playersLabel = PanelWidgets.CreateLabel(_inLobbyRow.transform, _font, new Vector2(0, 133), new Vector2(560, 24), "");
 		_playersLabel.fontSize = 16;
@@ -504,14 +495,13 @@ internal class MpPanelUI : MonoBehaviour
 
 	private void BuildAppearanceSection(Transform root)
 	{
-		_appearanceSection = new GameObject("AppearanceSection", typeof(RectTransform));
-		_appearanceSection.transform.SetParent(root, false);
+		_appearanceSection = PanelWidgets.CreateContainer(root, "AppearanceSection", Vector2.zero).gameObject;
 
 		var header = PanelWidgets.CreateLabel(_appearanceSection.transform, _font, new Vector2(0, 165), new Vector2(400, 34), "Colour");
 		header.alignment = TextAlignmentOptions.Center;
 		header.fontSize = 22;
 
-		_colourSwatch = CreateSwatchButton(_appearanceSection.transform, new Vector2(0, 110), new Vector2(160, 50));
+		_colourSwatch = PanelWidgets.CreateSwatch(_appearanceSection.transform, new Vector2(0, 110), new Vector2(160, 50), Color.white);
 		ApplyRoundedBoxStyle(_colourSwatch, Color.white);
 
 		const float presetSize = 50f;
@@ -522,7 +512,7 @@ internal class MpPanelUI : MonoBehaviour
 			var c = _colorPresets[i];
 			var slot = i % PresetsPerPage;
 			var x = startX + slot * presetSpacing;
-			var swatch = CreateSwatchButton(_appearanceSection.transform, new Vector2(x, 30), new Vector2(presetSize, presetSize), c, () => Apply(c));
+			var swatch = PanelWidgets.CreateSwatch(_appearanceSection.transform, new Vector2(x, 30), new Vector2(presetSize, presetSize), c, () => Apply(c));
 			ApplyRoundedBoxStyle(swatch, c);
 			_presetSwatches.Add(swatch);
 		}
@@ -546,9 +536,9 @@ internal class MpPanelUI : MonoBehaviour
 		_nameField.characterLimit = 24;
 		_nameField.onEndEdit.AddListener(OnNameFieldChanged);
 
-		_rSlider = CreateColorSlider(_appearanceSection.transform, new Vector2(0, -80), "R", new Color(1f, 0.4f, 0.4f));
-		_gSlider = CreateColorSlider(_appearanceSection.transform, new Vector2(0, -122), "G", new Color(0.4f, 1f, 0.4f));
-		_bSlider = CreateColorSlider(_appearanceSection.transform, new Vector2(0, -164), "B", new Color(0.4f, 0.6f, 1f));
+		_rSlider = PanelWidgets.CreateColorSlider(_appearanceSection.transform, _font, new Vector2(0, -80), "R", new Color(1f, 0.4f, 0.4f));
+		_gSlider = PanelWidgets.CreateColorSlider(_appearanceSection.transform, _font, new Vector2(0, -122), "G", new Color(0.4f, 1f, 0.4f));
+		_bSlider = PanelWidgets.CreateColorSlider(_appearanceSection.transform, _font, new Vector2(0, -164), "B", new Color(0.4f, 0.6f, 1f));
 		_rSlider.onValueChanged.AddListener(_ => OnSliderChanged());
 		_gSlider.onValueChanged.AddListener(_ => OnSliderChanged());
 		_bSlider.onValueChanged.AddListener(_ => OnSliderChanged());
@@ -566,87 +556,6 @@ internal class MpPanelUI : MonoBehaviour
 		cb.selectedColor = cb.normalColor;
 		cb.pressedColor = new Color(cb.normalColor.r * 0.8f, cb.normalColor.g * 0.8f, cb.normalColor.b * 0.8f, cb.normalColor.a);
 		btn.colors = cb;
-	}
-
-	private Image CreateSwatchButton(Transform parent, Vector2 pos, Vector2 size, Color? fixedColor = null, UnityEngine.Events.UnityAction onClick = null)
-	{
-		var go = new GameObject("Swatch", typeof(RectTransform), typeof(Image), typeof(Button));
-		go.transform.SetParent(parent, false);
-		var rt = (RectTransform)go.transform;
-		rt.anchoredPosition = pos;
-		rt.sizeDelta = size;
-		var img = go.GetComponent<Image>();
-		img.color = fixedColor ?? Color.white;
-		if (onClick != null) go.GetComponent<Button>().onClick.AddListener(onClick);
-		return img;
-	}
-
-	private Slider CreateColorSlider(Transform parent, Vector2 pos, string label, Color trackColor)
-	{
-		var container = new GameObject(label + "SliderRow", typeof(RectTransform));
-		container.transform.SetParent(parent, false);
-		((RectTransform)container.transform).anchoredPosition = pos;
-
-		var labelTmp = PanelWidgets.CreateLabel(container.transform, _font, new Vector2(-270, 0), new Vector2(30, 30), label);
-		labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
-		labelTmp.fontSize = 22;
-		labelTmp.color = trackColor;
-
-		var sliderGo = new GameObject("Slider", typeof(RectTransform));
-		sliderGo.transform.SetParent(container.transform, false);
-		var sliderRt = (RectTransform)sliderGo.transform;
-		sliderRt.anchoredPosition = new Vector2(30, 0);
-		sliderRt.sizeDelta = new Vector2(480, 24);
-
-		var bg = new GameObject("Background", typeof(RectTransform), typeof(Image));
-		bg.transform.SetParent(sliderGo.transform, false);
-		var bgRt = (RectTransform)bg.transform;
-		bgRt.anchorMin = new Vector2(0, 0.25f);
-		bgRt.anchorMax = new Vector2(1, 0.75f);
-		bgRt.offsetMin = Vector2.zero;
-		bgRt.offsetMax = Vector2.zero;
-		bg.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
-
-		var fillArea = new GameObject("Fill Area", typeof(RectTransform));
-		fillArea.transform.SetParent(sliderGo.transform, false);
-		var fillAreaRt = (RectTransform)fillArea.transform;
-		fillAreaRt.anchorMin = new Vector2(0, 0.25f);
-		fillAreaRt.anchorMax = new Vector2(1, 0.75f);
-		fillAreaRt.offsetMin = new Vector2(5, 0);
-		fillAreaRt.offsetMax = new Vector2(-5, 0);
-
-		var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
-		fill.transform.SetParent(fillArea.transform, false);
-		var fillRt = (RectTransform)fill.transform;
-		fillRt.anchorMin = Vector2.zero;
-		fillRt.anchorMax = new Vector2(0, 1);
-		fillRt.sizeDelta = new Vector2(10, 0);
-		fill.GetComponent<Image>().color = trackColor;
-
-		var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-		handleArea.transform.SetParent(sliderGo.transform, false);
-		var handleAreaRt = (RectTransform)handleArea.transform;
-		handleAreaRt.anchorMin = Vector2.zero;
-		handleAreaRt.anchorMax = Vector2.one;
-		handleAreaRt.offsetMin = new Vector2(10, 0);
-		handleAreaRt.offsetMax = new Vector2(-10, 0);
-
-		var handle = new GameObject("Handle", typeof(RectTransform), typeof(Image));
-		handle.transform.SetParent(handleArea.transform, false);
-		var handleRt = (RectTransform)handle.transform;
-		handleRt.sizeDelta = new Vector2(20, 20);
-		handle.GetComponent<Image>().color = Color.white;
-
-		var slider = sliderGo.AddComponent<Slider>();
-		slider.fillRect = fillRt;
-		slider.handleRect = handleRt;
-		slider.targetGraphic = handle.GetComponent<Image>();
-		slider.direction = Slider.Direction.LeftToRight;
-		slider.minValue = 0;
-		slider.maxValue = 255;
-		slider.wholeNumbers = true;
-		slider.value = 128;
-		return slider;
 	}
 
 	private void ChangePresetPage(int delta)
@@ -720,8 +629,7 @@ internal class MpPanelUI : MonoBehaviour
 
 	private void BuildChatSection(Transform parent)
 	{
-		_chatBox = new GameObject("ChatBox", typeof(RectTransform));
-		_chatBox.transform.SetParent(parent, false);
+		_chatBox = PanelWidgets.CreateContainer(parent, "ChatBox", Vector2.zero).gameObject;
 		var boxRt = (RectTransform)_chatBox.transform;
 		boxRt.anchoredPosition = new Vector2(0, 15);
 		boxRt.sizeDelta = new Vector2(600, 200);
@@ -729,8 +637,7 @@ internal class MpPanelUI : MonoBehaviour
 		ApplyRoundedBoxStyle(boxImg, Color.white);
 		_chatBox.AddComponent<RectMask2D>();
 
-		var chatLogGo = new GameObject("ChatLog", typeof(RectTransform));
-		chatLogGo.transform.SetParent(_chatBox.transform, false);
+		var chatLogGo = PanelWidgets.CreateContainer(_chatBox.transform, "ChatLog", Vector2.zero).gameObject;
 		var chatLogRt = (RectTransform)chatLogGo.transform;
 		chatLogRt.anchorMin = new Vector2(0.5f, 0.5f);
 		chatLogRt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -747,8 +654,7 @@ internal class MpPanelUI : MonoBehaviour
 
 	private void BuildListBox(Transform root)
 	{
-		_listBox = new GameObject("LobbyListBox", typeof(RectTransform));
-		_listBox.transform.SetParent(root, false);
+		_listBox = PanelWidgets.CreateContainer(root, "LobbyListBox", Vector2.zero).gameObject;
 		var boxRt = (RectTransform)_listBox.transform;
 		boxRt.anchoredPosition = new Vector2(0, -22);
 		boxRt.sizeDelta = new Vector2(600, 170);
@@ -767,8 +673,7 @@ internal class MpPanelUI : MonoBehaviour
 		refreshButton.navigation = new Navigation { mode = Navigation.Mode.None };
 		refreshButton.onClick.AddListener(() => MpNetworkManager.GetOrCreate().RequestLobbyList());
 
-		_listContent = new GameObject("LobbyListContent", typeof(RectTransform));
-		_listContent.transform.SetParent(_listBox.transform, false);
+		_listContent = PanelWidgets.CreateContainer(_listBox.transform, "LobbyListContent", Vector2.zero).gameObject;
 
 		var prevGo = CloneButton(_listBox.transform, "PrevPage", new Vector2(-230, -68), new Vector2(100, 30), "< Prev");
 		_prevPageButton = prevGo.GetComponent<Button>();
@@ -824,8 +729,7 @@ internal class MpPanelUI : MonoBehaviour
 
 	private void BuildDirectConnectSection(Transform root)
 	{
-		_directConnectSection = new GameObject("DirectConnectSection", typeof(RectTransform));
-		_directConnectSection.transform.SetParent(root, false);
+		_directConnectSection = PanelWidgets.CreateContainer(root, "DirectConnectSection", Vector2.zero).gameObject;
 
 		var header = PanelWidgets.CreateLabel(_directConnectSection.transform, _font, new Vector2(0, -128), new Vector2(560, 26), "Direct Connect");
 		header.fontSize = 20;
@@ -837,8 +741,7 @@ internal class MpPanelUI : MonoBehaviour
 
 	private void BuildMapPickerSection(Transform root)
 	{
-		_mapPickerSection = new GameObject("MapPickerSection", typeof(RectTransform));
-		_mapPickerSection.transform.SetParent(root, false);
+		_mapPickerSection = PanelWidgets.CreateContainer(root, "MapPickerSection", Vector2.zero).gameObject;
 
 		var header = PanelWidgets.CreateLabel(_mapPickerSection.transform, _font, new Vector2(0, 165), new Vector2(400, 34), "Choose a Map");
 		header.alignment = TextAlignmentOptions.Center;
@@ -1032,8 +935,7 @@ internal class MpPanelUI : MonoBehaviour
 	{
 		if (_chatMeasurer == null)
 		{
-			var go = new GameObject("ChatMeasurer", typeof(RectTransform));
-			go.transform.SetParent(_chatBox.transform, false);
+			var go = PanelWidgets.CreateContainer(_chatBox.transform, "ChatMeasurer", Vector2.zero).gameObject;
 			_chatMeasurer = go.AddComponent<TextMeshProUGUI>();
 			_chatMeasurer.font = _font;
 			_chatMeasurer.fontSize = 18;
@@ -1069,8 +971,7 @@ internal class MpPanelUI : MonoBehaviour
 		float y = 0f;
 		foreach (var (line, height) in kept)
 		{
-			var rowGo = new GameObject("ChatLine", typeof(RectTransform));
-			rowGo.transform.SetParent(_chatLogContainer, false);
+			var rowGo = PanelWidgets.CreateContainer(_chatLogContainer, "ChatLine", Vector2.zero).gameObject;
 			var rowRt = (RectTransform)rowGo.transform;
 			rowRt.anchorMin = new Vector2(0, 1);
 			rowRt.anchorMax = new Vector2(1, 1);
@@ -1170,8 +1071,7 @@ internal class MpPanelUI : MonoBehaviour
 			Object.Destroy(label.gameObject);
 		}
 
-		var nameGo = new GameObject("NameLabel", typeof(RectTransform));
-		nameGo.transform.SetParent(go.transform, false);
+		var nameGo = PanelWidgets.CreateContainer(go.transform, "NameLabel", Vector2.zero).gameObject;
 		var nameRt = (RectTransform)nameGo.transform;
 		nameRt.anchorMin = Vector2.zero;
 		nameRt.anchorMax = Vector2.one;
@@ -1187,8 +1087,7 @@ internal class MpPanelUI : MonoBehaviour
 		nameTmp.alignment = TextAlignmentOptions.MidlineLeft;
 		nameTmp.text = lobbyName;
 
-		var countGo = new GameObject("CountLabel", typeof(RectTransform));
-		countGo.transform.SetParent(go.transform, false);
+		var countGo = PanelWidgets.CreateContainer(go.transform, "CountLabel", Vector2.zero).gameObject;
 		var countRt = (RectTransform)countGo.transform;
 		countRt.anchorMin = Vector2.zero;
 		countRt.anchorMax = Vector2.one;
@@ -1204,8 +1103,7 @@ internal class MpPanelUI : MonoBehaviour
 		countTmp.alignment = TextAlignmentOptions.MidlineRight;
 		countTmp.text = $"{playerCount} player{(playerCount == 1 ? "" : "s")}";
 
-		var highlightGo = new GameObject("Highlight", typeof(RectTransform));
-		highlightGo.transform.SetParent(go.transform, false);
+		var highlightGo = PanelWidgets.CreateContainer(go.transform, "Highlight", Vector2.zero).gameObject;
 		highlightGo.transform.SetAsFirstSibling();
 		var highlightRt = (RectTransform)highlightGo.transform;
 		highlightRt.anchorMin = Vector2.zero;
@@ -1267,57 +1165,10 @@ internal class MpPanelUI : MonoBehaviour
 
 	private TMP_InputField CreateInputField(Transform parent, Vector2 anchoredPos, Vector2 size, string placeholder)
 	{
-		var go = new GameObject("InputField", typeof(RectTransform));
-		go.transform.SetParent(parent, false);
-		var rt = (RectTransform)go.transform;
-		rt.anchoredPosition = anchoredPos;
-		rt.sizeDelta = size;
-		var bg = go.AddComponent<Image>();
-		ApplyRoundedBoxStyle(bg, Color.white);
-
-		var textArea = new GameObject("Text Area", typeof(RectTransform));
-		textArea.transform.SetParent(go.transform, false);
-		var textAreaRt = (RectTransform)textArea.transform;
-		textAreaRt.anchorMin = Vector2.zero;
-		textAreaRt.anchorMax = Vector2.one;
-		textAreaRt.offsetMin = new Vector2(16, 4);
-		textAreaRt.offsetMax = new Vector2(-12, -4);
-		textArea.AddComponent<RectMask2D>();
-
-		var textGo = new GameObject("Text", typeof(RectTransform));
-		textGo.transform.SetParent(textArea.transform, false);
-		var textRt = (RectTransform)textGo.transform;
-		textRt.anchorMin = Vector2.zero;
-		textRt.anchorMax = Vector2.one;
-		textRt.offsetMin = Vector2.zero;
-		textRt.offsetMax = Vector2.zero;
-		var text = textGo.AddComponent<TextMeshProUGUI>();
-		text.font = _font;
-		text.fontSize = 22;
-		text.color = Color.white;
-		text.alignment = TextAlignmentOptions.MidlineLeft;
-		text.enableWordWrapping = false;
-
-		var placeholderGo = new GameObject("Placeholder", typeof(RectTransform));
-		placeholderGo.transform.SetParent(textArea.transform, false);
-		var placeholderRt = (RectTransform)placeholderGo.transform;
-		placeholderRt.anchorMin = Vector2.zero;
-		placeholderRt.anchorMax = Vector2.one;
-		placeholderRt.offsetMin = Vector2.zero;
-		placeholderRt.offsetMax = Vector2.zero;
-		var placeholderText = placeholderGo.AddComponent<TextMeshProUGUI>();
-		placeholderText.font = _font;
-		placeholderText.fontSize = 22;
-		placeholderText.color = new Color(1f, 1f, 1f, 0.4f);
-		placeholderText.text = placeholder;
-		placeholderText.fontStyle = FontStyles.Italic;
-		placeholderText.alignment = TextAlignmentOptions.MidlineLeft;
-
-		var input = go.AddComponent<TMP_InputField>();
-		input.textViewport = textAreaRt;
-		input.textComponent = text;
-		input.placeholder = placeholderText;
-		input.text = "";
+		var input = PanelWidgets.CreateInputField(parent, _font, anchoredPos, size, placeholder, fontSize: 22f);
+		ApplyRoundedBoxStyle(input.GetComponent<Image>(), Color.white);
+		input.textViewport.offsetMin = new Vector2(16, 4);
+		input.textViewport.offsetMax = new Vector2(-12, -4);
 		return input;
 	}
 }
@@ -1327,7 +1178,7 @@ internal static class MpMenuBuilder
 	public static void Install(pauseMenuScript menu)
 	{
 		MpNetworkManager.GetOrCreate();
-		if (menu.mainBitPublic == null || menu.settingsBitPublic == null) return;
+		if (PauseMenuHelper.MainBit(menu) == null || PauseMenuHelper.SettingsBit(menu) == null) return;
 
 		var mpPanel = PauseMenuHelper.AddPanelRow(menu, "Multiplayer", "DOTnet");
 		if (mpPanel == null) return;
@@ -1336,10 +1187,10 @@ internal static class MpMenuBuilder
 		{
 			var font = FindTitleFont(mpPanel);
 			var ui = mpPanel.AddComponent<MpPanelUI>();
-			ui.Build(mpPanel, font, settingsButtonTemplate: menu.mainBitPublic.transform.Find("Settings").gameObject, menu);
+			ui.Build(mpPanel, font, settingsButtonTemplate: PauseMenuHelper.MainBit(menu).transform.Find("Settings").gameObject, menu);
 		}
 
-		MpNetworkManager.LatestMainBit = menu.mainBitPublic;
+		MpNetworkManager.LatestMainBit = PauseMenuHelper.MainBit(menu);
 		MpNetworkManager.LatestMpPanel = mpPanel;
 	}
 

@@ -88,8 +88,7 @@ public class ExampleMod : IRechargeMod, IExampleModApi
         // AddRow/AddPanelRow have to be re-run against the CURRENT live menu -
         // host.PauseMenu here is only the instance alive when OnLoad ran.
         InstallMenuRow(host.PauseMenu);
-        host.Events.On(RechargeEvents.SceneLoaded, _ =>
-            InstallMenuRow(UnityEngine.Object.FindFirstObjectByType<pauseMenuScript>()));
+        PauseMenuHelper.OnMenuReady(host, InstallMenuRow);
     }
 
     private void InstallMenuRow(pauseMenuScript menu)

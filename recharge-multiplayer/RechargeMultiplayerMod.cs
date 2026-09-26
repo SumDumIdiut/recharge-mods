@@ -17,14 +17,10 @@ public class RechargeMultiplayerMod : IRechargeMod
         var hostPanel = hostPanelGo.AddComponent<HostPanelController>();
         hostPanel.Init(host);
 
-        host.Events.On(RechargeEvents.SceneLoaded, _ =>
+        PauseMenuHelper.OnMenuReady(host, menu =>
         {
-            var menu = UnityEngine.Object.FindFirstObjectByType<pauseMenuScript>();
-            if (menu != null)
-            {
-                MpMenuBuilder.Install(menu);
-                hostPanel.InstallMenuRow(menu);
-            }
+            MpMenuBuilder.Install(menu);
+            hostPanel.InstallMenuRow(menu);
         });
     }
 

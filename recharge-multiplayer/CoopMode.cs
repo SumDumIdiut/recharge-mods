@@ -1,3 +1,4 @@
+using Recharge.ModApi;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,10 +22,8 @@ internal class CoopManager
 	private readonly List<(courseScript course, int originalBaseReward)> _scaledRewards = new List<(courseScript, int)>();
 	private readonly List<(upgradeBox box, double originalBaseCost)> _scaledUpgradeCosts = new List<(upgradeBox, double)>();
 
-	private static readonly FieldInfo BaseRewardField =
-		typeof(courseScript).GetField("baseReward", BindingFlags.NonPublic | BindingFlags.Instance);
-	private static readonly MethodInfo DeactivateMethod =
-		typeof(upgradeBox).GetMethod("deactivate", BindingFlags.NonPublic | BindingFlags.Instance);
+	private static readonly FieldInfo BaseRewardField = Reflect.FieldOf<courseScript>("baseReward");
+	private static readonly MethodInfo DeactivateMethod = Reflect.MethodOf<upgradeBox>("deactivate");
 
 	private float _syncAccumulator;
 	private float _saveAccumulator;
