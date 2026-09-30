@@ -19,8 +19,10 @@ using Object = UnityEngine.Object;
 internal class MpStateMsg
 {
 	public string type = "state";
-	public float x;
-	public float y;
+	// World space (see MpOrigin), as doubles: raw float positions far from
+	// the origin lose precision, and each client's floating origin differs.
+	public double x;
+	public double y;
 	public bool facingRight;
 	public int animState;
 	public float animSpeed;
@@ -33,8 +35,8 @@ internal class MpStateMsg
 public class MpPlayerState
 {
 	public int id;
-	public float x;
-	public float y;
+	public double x;
+	public double y;
 	public bool facingRight;
 	public int animState;
 	public float animSpeed;
@@ -207,13 +209,54 @@ internal class MpNetClient : IDisposable
 	public void Dispose() => Disconnect();
 }
 
+// The full game rebases the world whenever the player gets 5000 units from
+// the origin (FloatingOrigin): every scene root shifts and the running total
+// lands in currentOrigin, so the game's own save/respawn code stores
+// position - currentOrigin. Each client's origin differs, so positions go
+// over the wire in that world space. FloatingOrigin doesn't exist in the
+// demo, hence reflection; there the origin is always zero.
+internal static class MpOrigin
+{
+	private static readonly Type OriginType = Type.GetType("FloatingOrigin, Assembly-CSharp");
+	private static readonly System.Reflection.FieldInfo CurrentOriginField = OriginType?.GetField("currentOrigin");
+	private static Object _instance;
+	private static float _nextSearchTime;
+
+	public static Vector3 Current
+	{
+		get
+		{
+			if (CurrentOriginField == null) return Vector3.zero;
+			if (_instance == null && Time.unscaledTime >= _nextSearchTime)
+			{
+				_nextSearchTime = Time.unscaledTime + 0.5f;
+				_instance = Object.FindFirstObjectByType(OriginType);
+			}
+			return _instance != null ? (Vector3)CurrentOriginField.GetValue(_instance) : Vector3.zero;
+		}
+	}
+
+	public static void ToWorld(Vector3 local, out double x, out double y)
+	{
+		var origin = Current;
+		x = (double)local.x - origin.x;
+		y = (double)local.y - origin.y;
+	}
+
+	public static Vector3 ToLocal(double x, double y)
+	{
+		var origin = Current;
+		return new Vector3((float)(x + origin.x), (float)(y + origin.y), 0f);
+	}
+}
+
 internal static class MpGhostManager
 {
 	private class GhostEntry
 	{
 		public GameObject Root;
 		public Transform SpriteTransform;
-		public Vector3 TargetPos;
+		public double TargetWorldX, TargetWorldY;
 		public bool TargetFacingRight;
 		public float LastSeenTime;
 		public Animator Anim;
@@ -224,6 +267,7 @@ internal static class MpGhostManager
 	private static readonly Dictionary<int, GhostEntry> _ghosts = new Dictionary<int, GhostEntry>();
 	private static Transform _spriteTemplate;
 	private static float _lastSnapshotLogTime = -999f;
+	private static Vector3 _lastOrigin;
 
 	public static void SetTemplate(Transform playerSprite)
 	{
@@ -242,7 +286,7 @@ internal static class MpGhostManager
 		{
 			if (doLog) Debug.Log($"[MpGhost] snapshot id={p.id} name={p.name} pos=({p.x:F1},{p.y:F1}) paused={p.isPaused}");
 			seen.Add(p.id);
-			var pos = new Vector3(p.x, p.y, 0f);
+			var pos = MpOrigin.ToLocal(p.x, p.y);
 			var dotColor = ParseColorOr(p.dotColor, new Color(0.4f, 0.6f, 1f, 0.9f));
 			var nameColor = ParseColorOr(p.nameColor, new Color(1f, 1f, 1f, 0.9f));
 			if (!_ghosts.TryGetValue(p.id, out var g))
@@ -254,7 +298,8 @@ internal static class MpGhostManager
 			{
 				ApplyColors(g, dotColor, nameColor);
 			}
-			g.TargetPos = pos;
+			g.TargetWorldX = p.x;
+			g.TargetWorldY = p.y;
 			g.TargetFacingRight = p.facingRight;
 			g.LastSeenTime = Time.unscaledTime;
 			if (g.Anim != null)
@@ -274,6 +319,19 @@ internal static class MpGhostManager
 	public static void Tick(float dt)
 	{
 		const float staleTimeout = 6f;
+
+		// Ghosts live in DontDestroyOnLoad, which a FloatingOrigin rebase
+		// doesn't move - shift them with the world so they don't lerp
+		// thousands of units across the screen to catch up.
+		var origin = MpOrigin.Current;
+		if (origin != _lastOrigin)
+		{
+			var shift = origin - _lastOrigin;
+			_lastOrigin = origin;
+			foreach (var g in _ghosts.Values)
+				if (g.Root != null) g.Root.transform.position += shift;
+		}
+
 		var stale = new List<int>();
 		foreach (var kv in _ghosts)
 		{
@@ -282,7 +340,7 @@ internal static class MpGhostManager
 			if (Time.unscaledTime - g.LastSeenTime > staleTimeout) { stale.Add(kv.Key); continue; }
 
 			var t = g.Root.transform;
-			t.position = Vector3.Lerp(t.position, g.TargetPos, 1f - Mathf.Exp(-14f * dt));
+			t.position = Vector3.Lerp(t.position, MpOrigin.ToLocal(g.TargetWorldX, g.TargetWorldY), 1f - Mathf.Exp(-14f * dt));
 
 			if (g.SpriteTransform != null)
 			{
@@ -382,7 +440,6 @@ internal static class MpGhostManager
 			Label = tm,
 			Anim = anim,
 			PausedIndicator = pausedGo,
-			TargetPos = spawnPos,
 			LastSeenTime = Time.unscaledTime,
 		};
 	}
@@ -401,12 +458,16 @@ internal static class MpGhostManager
 		foreach (var g in _ghosts.Values)
 			if (g.Root != null) Object.Destroy(g.Root);
 		_ghosts.Clear();
+		_lastOrigin = MpOrigin.Current;
 	}
 }
 
 public static class MpMapLibrary
 {
 	private const string HubBase = "https://codecade.co.za/recharge";
+
+	// The full game ships the demo's B-Side code but has no B-Side to play.
+	public static bool HasBSide => Application.productName != "IGTAPfullGame";
 
 	public static string MapsDir => Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", "Recharge", "Mods", "recharge.maps", "maps");
 
@@ -688,10 +749,7 @@ public class MpNetworkManager : MonoBehaviour
 		Object.Destroy(clone.GetComponent<KeybindSetterItemScript>());
 
 		var titleTf = clone.transform.Find("Title");
-		var titleLoc = titleTf != null ? titleTf.GetComponent<UnityEngine.Localization.Components.LocalizeStringEvent>() : null;
-		if (titleLoc != null) Object.DestroyImmediate(titleLoc);
-		var title = titleTf != null ? titleTf.GetComponent<TMPro.TMP_Text>() : null;
-		if (title != null) title.text = "Chat";
+		ModLabel.Attach(titleTf != null ? titleTf.GetComponent<TMPro.TMP_Text>() : null, "Chat");
 
 		var keyboardKeyTf = clone.transform.Find("KeyboardKey");
 		var keyText = keyboardKeyTf != null ? keyboardKeyTf.Find("Text (TMP)")?.GetComponent<TMPro.TMP_Text>() : null;
@@ -815,7 +873,7 @@ public class MpNetworkManager : MonoBehaviour
 
 	private void SendLocalState()
 	{
-		var pos = _localPlayer.transform.position;
+		MpOrigin.ToWorld(_localPlayer.transform.position, out var worldX, out var worldY);
 		var anim = _localPlayer.animator;
 		int animState = anim != null ? anim.GetInteger("Animation") : 0;
 		float animSpeed = anim != null ? anim.speed : 1f;
@@ -824,13 +882,13 @@ public class MpNetworkManager : MonoBehaviour
 		if (Time.unscaledTime - _lastStateLogTime > 2f)
 		{
 			_lastStateLogTime = Time.unscaledTime;
-			Debug.Log($"[MpNet] send state localId={LocalPlayerId} pos=({pos.x:F1},{pos.y:F1}) paused={isPaused} lobby={CurrentLobbyId}");
+			Debug.Log($"[MpNet] send state localId={LocalPlayerId} world=({worldX:F1},{worldY:F1}) paused={isPaused} lobby={CurrentLobbyId}");
 		}
 
 		var msg = new MpStateMsg
 		{
-			x = pos.x,
-			y = pos.y,
+			x = worldX,
+			y = worldY,
 			facingRight = _localPlayer.facingRight,
 			animState = animState,
 			animSpeed = animSpeed,

@@ -173,8 +173,8 @@ function handleMessage(id, msg) {
       if (hexRe.test(msg.nameColor)) c.nameColor = msg.nameColor;
       if (hexRe.test(msg.dotColor)) c.dotColor = msg.dotColor;
       states.set(id, {
-        x: clampNum(msg.x, 0, -1e6, 1e6),
-        y: clampNum(msg.y, 0, -1e6, 1e6),
+        x: clampNum(msg.x, 0, -1e9, 1e9), // world space (origin-independent), so it can get large in the full game
+        y: clampNum(msg.y, 0, -1e9, 1e9),
         facingRight: !!msg.facingRight,
         animState: Number.isFinite(msg.animState) ? clampNum(msg.animState | 0, 0, 0, 63) : 0,
         animSpeed: clampNum(msg.animSpeed, 1, -10, 10),

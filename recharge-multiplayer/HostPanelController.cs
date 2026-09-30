@@ -129,12 +129,7 @@ internal class HostPanelController : MonoBehaviour
 		for (int i = 0; i < _abilityDefs.Length; i++)
 		{
 			var key = _abilityDefs[i].Key;
-			var go = Object.Instantiate(template, _mainContent.transform);
-			go.name = "HostPanel_Ability_" + key;
-			go.SetActive(true);
-			var rt = (RectTransform)go.transform;
-			rt.anchoredPosition = new Vector2(xs[i], 55);
-			rt.sizeDelta = new Vector2(110, 44);
+			var go = PauseMenuHelper.CloneButton(template, _mainContent.transform, "HostPanel_Ability_" + key, _abilityDefs[i].Label, new Vector2(xs[i], 55), new Vector2(110, 44), () => _abilityEnabled[key] = !_abilityEnabled[key]);
 			var abilityText = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
 			if (abilityText != null)
 			{
@@ -150,10 +145,7 @@ internal class HostPanelController : MonoBehaviour
 				abilityText.textWrappingMode = TextWrappingModes.NoWrap;
 				abilityText.overflowMode = TextOverflowModes.Overflow;
 			}
-			var btn = go.GetComponent<Button>();
-			btn.onClick = new Button.ButtonClickedEvent();
-			btn.onClick.AddListener(() => _abilityEnabled[key] = !_abilityEnabled[key]);
-			_abilityButtons.Add((key, btn));
+			_abilityButtons.Add((key, go.GetComponent<Button>()));
 		}
 
 		PanelWidgets.CreateDivider(_mainContent.transform, new Vector2(0, 15), 420);
@@ -163,6 +155,7 @@ internal class HostPanelController : MonoBehaviour
 		_rosterGo = Object.Instantiate(template, _mainContent.transform);
 		_rosterGo.name = "HostPanelRoster";
 		_rosterGo.SetActive(true);
+		PauseMenuHelper.SetButtonLabel(_rosterGo, "");
 		var rosterBtn = _rosterGo.GetComponent<Button>();
 		if (rosterBtn != null) rosterBtn.enabled = false;
 		var rosterImg = _rosterGo.GetComponent<Image>();
@@ -178,6 +171,7 @@ internal class HostPanelController : MonoBehaviour
 		_statusGo = Object.Instantiate(template, _mainContent.transform);
 		_statusGo.name = "HostPanelStatus";
 		_statusGo.SetActive(true);
+		PauseMenuHelper.SetButtonLabel(_statusGo, "");
 		var statusBtn = _statusGo.GetComponent<Button>();
 		if (statusBtn != null) statusBtn.enabled = false;
 		var statusRt = (RectTransform)_statusGo.transform;
@@ -267,8 +261,7 @@ internal class HostPanelController : MonoBehaviour
 		_pickerHeader = headerGo.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
 		if (_pickerHeader != null)
 		{
-			var loc = _pickerHeader.GetComponent<UnityEngine.Localization.Components.LocalizeStringEvent>();
-			if (loc != null) Object.DestroyImmediate(loc);
+			ModLabel.Attach(_pickerHeader, "");
 			_pickerHeader.enableAutoSizing = false;
 			_pickerHeader.fontSize = 22;
 			_pickerHeader.textWrappingMode = TextWrappingModes.NoWrap;
@@ -289,8 +282,7 @@ internal class HostPanelController : MonoBehaviour
 		_pickerPageLabel = pageLabelGo.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
 		if (_pickerPageLabel != null)
 		{
-			var loc = _pickerPageLabel.GetComponent<UnityEngine.Localization.Components.LocalizeStringEvent>();
-			if (loc != null) Object.DestroyImmediate(loc);
+			ModLabel.Attach(_pickerPageLabel, "");
 			_pickerPageLabel.enableAutoSizing = false;
 			_pickerPageLabel.fontSize = 14;
 			_pickerPageLabel.color = new Color(1f, 1f, 1f, 0.6f);
@@ -339,7 +331,7 @@ internal class HostPanelController : MonoBehaviour
 		{
 			if (_pickerHeader != null) _pickerHeader.text = "Choose a Map";
 			entries.Add(("Base Game", () => { _selectedMapIndex = -2; _activePicker = PickerKind.None; Debug.Log("[HostPanel] map picker: selected Base Game (-2)"); }));
-			entries.Add(("B-Side", () => { _selectedMapIndex = -3; _activePicker = PickerKind.None; Debug.Log("[HostPanel] map picker: selected B-Side (-3)"); }));
+			if (MpMapLibrary.HasBSide) entries.Add(("B-Side", () => { _selectedMapIndex = -3; _activePicker = PickerKind.None; Debug.Log("[HostPanel] map picker: selected B-Side (-3)"); }));
 			for (int i = 0; i < _hostableMaps.Count; i++)
 			{
 				var idx = i;
@@ -366,6 +358,7 @@ internal class HostPanelController : MonoBehaviour
 		var end = Mathf.Min(start + PickerRowsPerPage, entries.Count);
 		for (int i = start; i < end; i++)
 		{
+			if (i > start) _pickerRows.Add(PanelWidgets.CreateDivider(_pickerSection.transform, new Vector2(0, y + spacing / 2f), 380));
 			_pickerRows.Add(CreatePickerRow(entries[i].Label, y, entries[i].OnClick));
 			y -= spacing;
 		}
@@ -383,13 +376,7 @@ internal class HostPanelController : MonoBehaviour
 
 	private GameObject CreatePickerRow(string label, float y, System.Action onClick)
 	{
-		var go = Object.Instantiate(_pickerTemplate, _pickerSection.transform);
-		go.name = "HostPanel_PickerRow";
-		go.SetActive(true);
-		var rt = (RectTransform)go.transform;
-		rt.anchoredPosition = new Vector2(0, y);
-		rt.sizeDelta = new Vector2(380, 44);
-		PauseMenuHelper.SetButtonLabel(go, label);
+		var go = PauseMenuHelper.CloneButton(_pickerTemplate, _pickerSection.transform, "HostPanel_PickerRow", label, new Vector2(0, y), new Vector2(380, 44), onClick);
 		var tmp = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
 		if (tmp != null)
 		{
@@ -398,28 +385,17 @@ internal class HostPanelController : MonoBehaviour
 			tmp.fontSizeMax = 20f;
 			tmp.textWrappingMode = TextWrappingModes.NoWrap;
 			tmp.overflowMode = TextOverflowModes.Overflow;
+			tmp.alignment = TextAlignmentOptions.MidlineLeft;
 		}
-		var btn = go.GetComponent<Button>();
-		btn.onClick = new Button.ButtonClickedEvent();
-		btn.onClick.AddListener(() => onClick());
 		return go;
 	}
 
 	private static Button BuildActionButton(Transform parent, GameObject template, string label, Vector2 pos, System.Action onClick, float width = 260, float height = 60, float fontSize = 24f)
 	{
-		var go = Object.Instantiate(template, parent);
-		go.name = "HostPanel_" + label;
-		go.SetActive(true);
-		var rt = (RectTransform)go.transform;
-		rt.anchoredPosition = pos;
-		rt.sizeDelta = new Vector2(width, height);
-		PauseMenuHelper.SetButtonLabel(go, label);
+		var go = PauseMenuHelper.CloneButton(template, parent, "HostPanel_" + label, label, pos, new Vector2(width, height), onClick);
 		var text = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
 		if (text != null) { text.enableAutoSizing = false; text.fontSize = fontSize; text.textWrappingMode = TextWrappingModes.NoWrap; text.overflowMode = TextOverflowModes.Overflow; }
-		var btn = go.GetComponent<Button>();
-		btn.onClick = new Button.ButtonClickedEvent();
-		btn.onClick.AddListener(() => onClick());
-		return btn;
+		return go.GetComponent<Button>();
 	}
 
 	private void RefreshMapList()
@@ -852,7 +828,8 @@ internal class HostPanelController : MonoBehaviour
 
 		Vector2 pos = resetPointGo.transform.position;
 		_localMovement.transform.position = pos;
-		_localMovement.respawnPoint = pos;
+		// respawnPoint is world space: the game adds FloatingOrigin.currentOrigin back on respawn.
+		_localMovement.respawnPoint = pos - (Vector2)MpOrigin.Current;
 		var body = _localMovement.GetComponent<Rigidbody2D>();
 		if (body != null) body.position = pos;
 	}

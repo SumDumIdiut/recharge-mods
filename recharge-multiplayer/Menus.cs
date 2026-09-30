@@ -758,18 +758,16 @@ internal class MpPanelUI : MonoBehaviour
 		foreach (var row in _mapPickerRows) Object.Destroy(row);
 		_mapPickerRows.Clear();
 
+		var entries = new List<(string Label, int MapIndex)> { ("Base Game", -1) };
+		if (MpMapLibrary.HasBSide) entries.Add(("B-Side", -2));
+		for (int i = 0; i < _hostableMaps.Count; i++) entries.Add((_hostableMaps[i].Name, i));
+
 		float y = 120f;
 		const float rowSpacing = 56f;
-
-		_mapPickerRows.Add(CreateMapPickerRow(new Vector2(0, y), "Base Game", -1));
-		y -= rowSpacing;
-
-		_mapPickerRows.Add(CreateMapPickerRow(new Vector2(0, y), "B-Side", -2));
-		y -= rowSpacing;
-
-		for (int i = 0; i < _hostableMaps.Count; i++)
+		for (int i = 0; i < entries.Count; i++)
 		{
-			_mapPickerRows.Add(CreateMapPickerRow(new Vector2(0, y), _hostableMaps[i].Name, i));
+			if (i > 0) _mapPickerRows.Add(PanelWidgets.CreateDivider(_mapPickerSection.transform, new Vector2(0, y + rowSpacing / 2f), 400));
+			_mapPickerRows.Add(CreateMapPickerRow(new Vector2(0, y), entries[i].Label, entries[i].MapIndex));
 			y -= rowSpacing;
 		}
 	}
@@ -777,6 +775,8 @@ internal class MpPanelUI : MonoBehaviour
 	private GameObject CreateMapPickerRow(Vector2 pos, string label, int mapIndex)
 	{
 		var go = CloneButton(_mapPickerSection.transform, "MapRow", pos, new Vector2(400, 48), label);
+		var tmp = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
+		if (tmp != null) tmp.alignment = TextAlignmentOptions.MidlineLeft;
 		go.GetComponent<Button>().onClick.AddListener(() => FinalizeHost(mapIndex));
 		return go;
 	}
@@ -1130,19 +1130,11 @@ internal class MpPanelUI : MonoBehaviour
 
 	private GameObject CloneButton(Transform parent, string name, Vector2 anchoredPos, Vector2 size, string labelOverride = null)
 	{
-		var go = Object.Instantiate(_buttonTemplate, parent);
-		go.name = name;
-		go.SetActive(true);
-		var rt = (RectTransform)go.transform;
-		rt.anchoredPosition = anchoredPos;
-		rt.sizeDelta = size;
+		var go = PauseMenuHelper.CloneButton(_buttonTemplate, parent, name, labelOverride ?? name, anchoredPos, size);
 
 		var label = go.transform.Find("Text (TMP)");
 		if (label != null)
 		{
-			var loc = label.GetComponent<UnityEngine.Localization.Components.LocalizeStringEvent>();
-			if (loc != null) Object.DestroyImmediate(loc);
-
 			var labelRt = (RectTransform)label;
 			const float extraInset = 6f;
 			labelRt.offsetMin = new Vector2(labelRt.offsetMin.x + extraInset, labelRt.offsetMin.y);
@@ -1151,15 +1143,11 @@ internal class MpPanelUI : MonoBehaviour
 			var tmp = label.GetComponent<TMP_Text>();
 			if (tmp != null)
 			{
-				tmp.text = labelOverride ?? name;
 				tmp.enableAutoSizing = false;
 				tmp.fontSize = 24f;
 				tmp.enableWordWrapping = false;
 			}
 		}
-
-		var button = go.GetComponent<Button>();
-		button.onClick = new Button.ButtonClickedEvent();
 		return go;
 	}
 
