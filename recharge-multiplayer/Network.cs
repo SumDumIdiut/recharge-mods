@@ -262,16 +262,42 @@ internal static class MpGhostManager
 		public Animator Anim;
 		public TextMesh Label;
 		public GameObject PausedIndicator;
+		public readonly List<SpriteRenderer> Body = new List<SpriteRenderer>(); // tinted with the player's colour
+		public Transform[] Dash = new Transform[0];
+		public Transform[] Jump = new Transform[0];
 	}
 
+	// Copied from the local player: Sprite (which carries the dash indicators
+	// under Indicators/DashIndicators) and PlayerObject/JumpIndicators, which
+	// the game keeps outside the sprite and steers toward
+	// Sprite/Indicators/JumpIndicatorTarget.
 	private static readonly Dictionary<int, GhostEntry> _ghosts = new Dictionary<int, GhostEntry>();
+	private static readonly Dictionary<int, (int Dashes, int Jumps)> _indicatorCounts = new Dictionary<int, (int, int)>();
 	private static Transform _spriteTemplate;
+	private static Transform _jumpTemplate;
+	private static Sprite _pauseSprite;
 	private static float _lastSnapshotLogTime = -999f;
 	private static Vector3 _lastOrigin;
 
-	public static void SetTemplate(Transform playerSprite)
+	public static void SetTemplate(Transform playerSprite, Transform jumpIndicators)
 	{
 		_spriteTemplate = playerSprite;
+		_jumpTemplate = jumpIndicators;
+	}
+
+	// A peer's air dashes/jumps left, as its own indicators would show them.
+	public static void SetIndicators(int id, int dashes, int jumps)
+	{
+		_indicatorCounts[id] = (dashes, jumps);
+		if (_ghosts.TryGetValue(id, out var g)) ApplyIndicators(g, dashes, jumps);
+	}
+
+	private static void ApplyIndicators(GhostEntry g, int dashes, int jumps)
+	{
+		for (int i = 0; i < g.Dash.Length; i++)
+			if (g.Dash[i] != null) g.Dash[i].gameObject.SetActive(i < dashes);
+		for (int i = 0; i < g.Jump.Length; i++)
+			if (g.Jump[i] != null) g.Jump[i].gameObject.SetActive(i < jumps);
 	}
 
 	public static GameObject GetGhostRoot(int id) => _ghosts.TryGetValue(id, out var g) ? g.Root : null;
@@ -293,6 +319,8 @@ internal static class MpGhostManager
 			{
 				g = Spawn(p.name, pos, dotColor, nameColor);
 				_ghosts[p.id] = g;
+				var counts = _indicatorCounts.TryGetValue(p.id, out var c) ? c : (0, 0);
+				ApplyIndicators(g, counts.Item1, counts.Item2);
 			}
 			else
 			{
@@ -365,9 +393,8 @@ internal static class MpGhostManager
 
 	private static void ApplyColors(GhostEntry g, Color dotColor, Color nameColor)
 	{
-		if (g.Root != null)
-			foreach (var partSr in g.Root.GetComponentsInChildren<SpriteRenderer>(true))
-				partSr.color = dotColor;
+		foreach (var partSr in g.Body)
+			if (partSr != null) partSr.color = dotColor;
 		if (g.Label != null) g.Label.color = nameColor;
 	}
 
@@ -377,24 +404,23 @@ internal static class MpGhostManager
 		Object.DontDestroyOnLoad(root);
 		root.transform.position = spawnPos;
 
+		var entry = new GhostEntry { Root = root, LastSeenTime = Time.unscaledTime };
 		SpriteRenderer sr = null;
 		Animator anim = null;
 		Transform spriteTransform = null;
+		Transform indicators = null;
 
 		if (_spriteTemplate != null)
 		{
 			var spriteGo = Object.Instantiate(_spriteTemplate.gameObject, root.transform);
 			spriteGo.name = "Sprite";
 			spriteGo.transform.localPosition = Vector3.zero;
-			foreach (var comp in spriteGo.GetComponentsInChildren<Component>())
-			{
-				if (comp is Transform || comp is SpriteRenderer || comp is Animator) continue;
-				Object.Destroy(comp);
-			}
+			StripToVisuals(spriteGo);
 			sr = spriteGo.GetComponent<SpriteRenderer>();
 			anim = spriteGo.GetComponent<Animator>();
 			if (anim != null) anim.updateMode = AnimatorUpdateMode.UnscaledTime;
 			spriteTransform = spriteGo.transform;
+			indicators = spriteTransform.Find("Indicators");
 		}
 		else
 		{
@@ -402,12 +428,49 @@ internal static class MpGhostManager
 			spriteTransform = root.transform;
 		}
 
+		// Everything but the indicators is the player body, drawn unlit in
+		// their colour; the indicators keep the game's own look.
 		var unlitShader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default")
 			?? Shader.Find("Sprites/Default");
 		foreach (var partSr in root.GetComponentsInChildren<SpriteRenderer>(true))
 		{
+			if (indicators != null && partSr.transform.IsChildOf(indicators)) continue;
 			if (unlitShader != null) partSr.material = new Material(unlitShader);
 			partSr.color = dotColor;
+			entry.Body.Add(partSr);
+		}
+
+		// The clone carries whatever the local player's indicators showed at
+		// copy time - reset them so only the peer's counts drive them.
+		var dashParent = indicators != null ? indicators.Find("DashIndicators") : null;
+		if (dashParent != null)
+		{
+			entry.Dash = new Transform[dashParent.childCount];
+			for (int i = 0; i < dashParent.childCount; i++)
+			{
+				var d = dashParent.GetChild(i);
+				d.localPosition = Vector3.zero;
+				d.localScale = Vector3.one;
+				entry.Dash[i] = d;
+			}
+		}
+		var jumpTarget = indicators != null ? indicators.Find("JumpIndicatorTarget") : null;
+		if (_jumpTemplate != null && jumpTarget != null)
+		{
+			var jumpGo = Object.Instantiate(_jumpTemplate.gameObject, jumpTarget);
+			jumpGo.name = "JumpIndicators";
+			StripToVisuals(jumpGo);
+			jumpGo.transform.localPosition = Vector3.zero;
+			jumpGo.transform.localRotation = Quaternion.identity;
+			jumpGo.transform.localScale = Vector3.one;
+			entry.Jump = new Transform[jumpGo.transform.childCount];
+			for (int i = 0; i < entry.Jump.Length; i++)
+			{
+				var j = jumpGo.transform.GetChild(i);
+				j.localPosition = new Vector3(0f, -15f * i, 0f); // same stacking as PlayerAbilityIndicatorController
+				j.localScale = Vector3.one;
+				entry.Jump[i] = j;
+			}
 		}
 
 		var labelGo = new GameObject("Label");
@@ -423,25 +486,58 @@ internal static class MpGhostManager
 
 		var pausedGo = new GameObject("PausedIndicator");
 		pausedGo.transform.SetParent(root.transform, false);
-		pausedGo.transform.localPosition = new Vector3(0f, 105f, 0f);
-		var pausedTm = pausedGo.AddComponent<TextMesh>();
-		pausedTm.text = "PAUSED";
-		pausedTm.fontSize = 48;
-		pausedTm.characterSize = 6f;
-		pausedTm.anchor = TextAnchor.MiddleCenter;
-		pausedTm.alignment = TextAlignment.Center;
-		pausedTm.color = new Color(1f, 0.85f, 0.2f);
+		pausedGo.transform.localPosition = new Vector3(0f, 110f, 0f);
+		var pausedSr = pausedGo.AddComponent<SpriteRenderer>();
+		pausedSr.sprite = PauseSprite();
+		pausedSr.color = new Color(1f, 0.85f, 0.2f);
+		if (unlitShader != null) pausedSr.material = new Material(unlitShader);
+		if (sr != null)
+		{
+			pausedSr.sortingLayerID = sr.sortingLayerID;
+			pausedSr.sortingOrder = sr.sortingOrder + 10;
+		}
 		pausedGo.SetActive(false);
 
-		return new GhostEntry
+		entry.SpriteTransform = spriteTransform;
+		entry.Label = tm;
+		entry.Anim = anim;
+		entry.PausedIndicator = pausedGo;
+		return entry;
+	}
+
+	private static void StripToVisuals(GameObject go)
+	{
+		foreach (var comp in go.GetComponentsInChildren<Component>(true))
 		{
-			Root = root,
-			SpriteTransform = spriteTransform,
-			Label = tm,
-			Anim = anim,
-			PausedIndicator = pausedGo,
-			LastSeenTime = Time.unscaledTime,
-		};
+			if (comp is Transform || comp is SpriteRenderer || comp is Animator) continue;
+			Object.Destroy(comp);
+		}
+	}
+
+	// A pause glyph (two bars with a dark outline), 32x32 at 1 pixel per
+	// unit - the game has no pause sprite of its own to borrow. White, so
+	// the SpriteRenderer's colour tints it.
+	private static Sprite PauseSprite()
+	{
+		if (_pauseSprite != null) return _pauseSprite;
+		const int size = 32;
+		bool Bar(int x, int y) => y >= 4 && y < 28 && ((x >= 7 && x < 13) || (x >= 19 && x < 25));
+		var px = new Color32[size * size];
+		for (int y = 0; y < size; y++)
+		for (int x = 0; x < size; x++)
+		{
+			if (Bar(x, y)) { px[y * size + x] = new Color32(255, 255, 255, 255); continue; }
+			bool edge = false;
+			for (int dy = -1; dy <= 1 && !edge; dy++)
+			for (int dx = -1; dx <= 1 && !edge; dx++)
+				edge = Bar(x + dx, y + dy);
+			px[y * size + x] = edge ? new Color32(0, 0, 0, 200) : new Color32(0, 0, 0, 0);
+		}
+		var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+		tex.SetPixels32(px);
+		tex.Apply();
+		_pauseSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 1f);
+		return _pauseSprite;
 	}
 
 	private static void Remove(int id)
@@ -458,6 +554,7 @@ internal static class MpGhostManager
 		foreach (var g in _ghosts.Values)
 			if (g.Root != null) Object.Destroy(g.Root);
 		_ghosts.Clear();
+		_indicatorCounts.Clear();
 		_lastOrigin = MpOrigin.Current;
 	}
 }
@@ -488,14 +585,26 @@ public static class MpMapLibrary
 			if (!File.Exists(mapJsonPath)) continue;
 			try
 			{
-				var obj = JObject.Parse(File.ReadAllText(mapJsonPath));
-				var name = (string)obj["name"];
+				// Whole-level maps run tens of MB - read just the top-level "name" instead of parsing the whole file into memory.
+				var name = ReadMapName(mapJsonPath);
 				if (string.IsNullOrEmpty(name)) continue;
 				result.Add((Path.GetFileName(dir), name));
 			}
 			catch (Exception e) { Debug.LogWarning("[DOTnet] couldn't read " + mapJsonPath + ": " + e.Message); }
 		}
 		return result;
+	}
+
+	private static string ReadMapName(string mapJsonPath)
+	{
+		using (var reader = new JsonTextReader(new StreamReader(mapJsonPath)))
+			while (reader.Read())
+			{
+				if (reader.Depth == 1 && reader.TokenType == JsonToken.PropertyName && (string)reader.Value == "name")
+					return reader.ReadAsString();
+				if (reader.Depth == 1 && reader.TokenType == JsonToken.PropertyName) { reader.Read(); reader.Skip(); }
+			}
+		return null;
 	}
 
 	public static List<HostableMap> GetHostableMaps()
@@ -602,6 +711,8 @@ public class MpNetworkManager : MonoBehaviour
 	private bool _chatRowEnsured;
 	private float _nextChatRowCheckTime;
 	private float _lastStateLogTime = -999f;
+	private int _sentDashes = -1, _sentJumps = -1;
+	private float _indicatorResendAt;
 
 	private static readonly string FlagPath = System.IO.Path.Combine(Application.persistentDataPath, "mp-test.flag");
 	private float _flagCheckAccumulator;
@@ -657,7 +768,7 @@ public class MpNetworkManager : MonoBehaviour
 		var playerGo = GameObject.FindGameObjectWithTag("Player");
 		_localPlayer = playerGo != null ? playerGo.GetComponent<Movement>() : null;
 		var sprite = _localPlayer != null ? _localPlayer.transform.Find("Sprite") : null;
-		if (sprite != null) MpGhostManager.SetTemplate(sprite);
+		if (sprite != null) MpGhostManager.SetTemplate(sprite, _localPlayer.transform.parent != null ? _localPlayer.transform.parent.Find("JumpIndicators") : null);
 
 		_localSpriteRenderers = null;
 		_localSpriteOriginalColors = null;
@@ -869,6 +980,7 @@ public class MpNetworkManager : MonoBehaviour
 		if (_stateSendAccumulator < StateSendInterval) return;
 		_stateSendAccumulator = 0f;
 		SendLocalState();
+		SendIndicators();
 	}
 
 	private void SendLocalState()
@@ -900,6 +1012,19 @@ public class MpNetworkManager : MonoBehaviour
 		_net.Send(JsonConvert.SerializeObject(msg));
 	}
 
+	// Air dashes/jumps left go out through the relay's generic game_msg
+	// channel (no relay change needed): on every change, plus once a second
+	// so someone who joins mid-air still gets them.
+	private void SendIndicators()
+	{
+		int dashes = _localPlayer.airDashesLeft, jumps = _localPlayer.airJumpsLeft;
+		if (dashes == _sentDashes && jumps == _sentJumps && Time.unscaledTime < _indicatorResendAt) return;
+		_sentDashes = dashes;
+		_sentJumps = jumps;
+		_indicatorResendAt = Time.unscaledTime + 1f;
+		SendGameMessage(new JObject { ["k"] = "ind", ["d"] = dashes, ["j"] = jumps });
+	}
+
 	private void HandleLine(string line)
 	{
 		JObject obj;
@@ -916,9 +1041,20 @@ public class MpNetworkManager : MonoBehaviour
 				else if (_resumeMode == ResumeMode.Join) JoinLobby(_resumeJoinLobbyId);
 				break;
 			case "game_msg":
-				Debug.Log($"[MpNet] recv game_msg from={obj["from"]} k={obj["payload"]?["k"]} localId={LocalPlayerId} hasSubscriber={OnGameMessage != null}");
-				OnGameMessage?.Invoke((int)obj["from"], (JObject)obj["payload"]);
+			{
+				var from = (int?)obj["from"] ?? 0;
+				if (!(obj["payload"] is JObject payload)) break;
+				var kind = (string)payload["k"];
+				if (kind == "ind")
+				{
+					if (from != LocalPlayerId)
+						MpGhostManager.SetIndicators(from, (int?)payload["d"] ?? 0, (int?)payload["j"] ?? 0);
+					break;
+				}
+				Debug.Log($"[MpNet] recv game_msg from={from} k={kind} localId={LocalPlayerId} hasSubscriber={OnGameMessage != null}");
+				OnGameMessage?.Invoke(from, payload);
 				break;
+			}
 			case "snapshot":
 			{
 				var snap = obj.ToObject<MpSnapshotMsg>();
