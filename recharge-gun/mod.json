@@ -1,0 +1,10 @@
+{
+  "id": "recharge.gun",
+  "displayName": "Gun",
+  "version": "1.0.3",
+  "author": "Flipped",
+  "description": "A free 'Unlock gun' box in the upgrade row by your spawn. Five pixel-art guns (pistol, blaster, shotgun, ray gun, rocket launcher), each with its own flash, bullet and impact; switch with 1-5 on the hotbar. Recoil physics up to 10000%, and bullets break blocks, spikes, decorations and objects until the level reloads.",
+  "entryAssembly": "RechargeGun.dll",
+  "minLoaderVersion": "1.0.0",
+  "enabled": true
+}
