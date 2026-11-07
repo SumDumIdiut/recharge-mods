@@ -16,7 +16,6 @@ const MAX_MISSED_HEARTBEATS = 3;
 const MAX_LOBBIES = 500;
 const MAX_LOBBY_MEMBERS = 16;
 const MAX_CHAT_HISTORY = 50; // per lobby, so someone joining mid-conversation isn't lost
-
 let nextId = 1;
 let nextLobbyId = 1;
 const clients = new Map();  // id -> { ws, name, lobbyId, ip, msgCount, msgWindowStart }
@@ -34,6 +33,7 @@ function lobbySummary(lobbyId) {
   const l = lobbies.get(lobbyId);
   if (!l) return null;
   const hostClient = clients.get(l.hostId);
+  if (!hostClient) return null; // hostless (the host dropped): hidden until it is reclaimed or closed
   return {
     id: lobbyId,
     name: l.name,
@@ -46,6 +46,24 @@ function lobbySummary(lobbyId) {
   };
 }
 
+// The host left but members remain: hand the lobby to the earliest-joined remaining member instead of closing it.
+function promoteHost(lobbyId, l) {
+  if (l.hostToken) tokenToLobby.delete(l.hostToken);
+  l.hostToken = null; // joiners carry no session token, so a promoted host has nothing to reclaim with
+  let newId = null;
+  for (const mid of l.members) { if (clients.get(mid)) { newId = mid; break; } }
+  if (newId == null) return; // nobody connected is left; the lobby stays hidden until its zombie members are reaped
+  l.hostId = newId;
+  const nc = clients.get(newId);
+  send(nc.ws, { type: 'hosted', lobbyId, name: l.name, mapHubId: l.mapHubId || null, mapName: l.mapName || null, hard: !!l.hard, promoted: true });
+  for (const mid of l.members) {
+    if (mid === newId) continue;
+    const mc = clients.get(mid);
+    if (mc) send(mc.ws, { type: 'chat', from: 'Lobby', fromColor: '#FFD700', text: nc.name + ' is now the host' });
+  }
+  console.log(`[lobby] #${lobbyId} "${l.name}" host passed to ${newId} (${nc.name})`);
+}
+
 function leaveLobby(id) {
   const c = clients.get(id);
   if (!c || c.lobbyId == null) return;
@@ -55,6 +73,8 @@ function leaveLobby(id) {
     if (l.members.size === 0) {
       lobbies.delete(c.lobbyId);
       if (l.hostToken) tokenToLobby.delete(l.hostToken);
+    } else if (id === l.hostId) {
+      promoteHost(c.lobbyId, l);
     }
   }
   c.lobbyId = null;
@@ -225,6 +245,10 @@ function handleMessage(id, msg) {
       const l = lobbies.get(lobbyId);
       if (!l) {
         send(c.ws, { type: 'join_failed', reason: 'Lobby not found' });
+        break;
+      }
+      if (!clients.get(l.hostId)) {
+        send(c.ws, { type: 'join_failed', reason: 'The host left this lobby' });
         break;
       }
       if (l.members.size >= MAX_LOBBY_MEMBERS) {
